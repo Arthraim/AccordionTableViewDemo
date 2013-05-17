@@ -80,9 +80,15 @@
     
     if (cell == nil) {
         cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleDefault reuseIdentifier:CellIdentifier];
-        cell.accessoryType = UITableViewCellAccessoryDetailDisclosureButton;
     }
     cell.textLabel.text = [_arr objectAtIndex:indexPath.row];
+    
+    if (_lastIndexPath && _lastIndexPath.row == indexPath.row) { // 展开的那行
+        cell.accessoryType = UITableViewCellAccessoryCheckmark;
+    } else {
+        cell.accessoryType = UITableViewCellAccessoryDetailDisclosureButton;        
+    }
+    
     return cell;
 }
 
@@ -98,37 +104,51 @@
     return 44;
 }
 
+- (void)tableView:(UITableView *)tableView accessoryButtonTappedForRowWithIndexPath:(NSIndexPath *)indexPath
+{
+    [self rowClicked:indexPath];
+}
+
 - (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath
 {
     [tableView deselectRowAtIndexPath:indexPath animated:YES];
+    [self rowClicked:indexPath];
 }
 
-- (void)tableView:(UITableView *)tableView accessoryButtonTappedForRowWithIndexPath:(NSIndexPath *)newIndexPath
+- (void)rowClicked:(NSIndexPath *)newIndexPath
 {
-    // 打开新的
+    // 打开新的（上一次点击打开的index为nil，即没有打开过任何cell）
     if (!_lastIndexPath) {
         [_arr insertObject:ContentPlaceHolder atIndex:newIndexPath.row+1];
         _lastIndexPath = newIndexPath;
         NSIndexPath *contentIndexPath = [NSIndexPath indexPathForRow:newIndexPath.row+1 inSection:newIndexPath.section];
         [_tableView insertRowsAtIndexPaths:@[contentIndexPath] withRowAnimation:UITableViewRowAnimationFade];
-        //        [_tableView reloadRowsAtIndexPaths:@[self.appendIndexPath] withRowAnimation:UITableViewRowAnimationFade];
+        [_tableView reloadRowsAtIndexPaths:@[_lastIndexPath] withRowAnimation:UITableViewRowAnimationNone];
     }
-    // 关闭旧的
+    // 关闭旧的（新点击的index和上一次点击打开的index相等，即点了上一次点的那个cell）
     else if (_lastIndexPath.row == newIndexPath.row && _lastIndexPath.section == newIndexPath.section) {
         _lastIndexPath = nil;
         [_arr removeObjectAtIndex:newIndexPath.row + 1];
         
         NSIndexPath *contentIndexPath = [NSIndexPath indexPathForRow:newIndexPath.row+1 inSection:newIndexPath.section];
         [_tableView deleteRowsAtIndexPaths:@[contentIndexPath] withRowAnimation:UITableViewRowAnimationFade];
-        //        [_tableView reloadRowsAtIndexPaths:@[contentIndexPath] withRowAnimation:UITableViewRowAnimationFade];
+        [_tableView reloadRowsAtIndexPaths:@[newIndexPath] withRowAnimation:UITableViewRowAnimationNone];
     }
-    // 打开新的且关闭旧的
+    // 不做操作（新点击的index和上一次点击打开的index比起来section相同且row大1，即点击了展开的那个gridview的cell）
+    else if (_lastIndexPath.row == newIndexPath.row-1 && _lastIndexPath.section == newIndexPath.section) {
+        return;
+    }
+    // 打开新的且关闭旧的（上一次打开了其他cell的情况下，又点击了另一个没有打开的cell）
     else if (_lastIndexPath.row != newIndexPath.row || _lastIndexPath.section != newIndexPath.section) {
+        _lastIndexPath = nil; // 暂时设为nil，这样reload单行的时候会判断它没有选中
         int idx = [_arr indexOfObject:ContentPlaceHolder];
         [_arr removeObjectAtIndex:idx];
         
         [_tableView deleteRowsAtIndexPaths:@[[NSIndexPath indexPathForRow:idx inSection:newIndexPath.section]]
                           withRowAnimation:UITableViewRowAnimationFade];
+        // 刷新删除的那一行上面那行，因为上面把lastIndexPath设为nil了，所以这行会被刷新成未选中
+        [_tableView reloadRowsAtIndexPaths:@[[NSIndexPath indexPathForRow:idx-1 inSection:newIndexPath.section]]
+                          withRowAnimation:UITableViewRowAnimationNone];
         
         if (newIndexPath.row > idx) {
             _lastIndexPath = [NSIndexPath indexPathForRow:newIndexPath.row-1 inSection:newIndexPath.section];
@@ -138,6 +158,7 @@
         NSIndexPath *contentIndexPath = [NSIndexPath indexPathForRow:_lastIndexPath.row+1 inSection:newIndexPath.section];
         [_arr insertObject:ContentPlaceHolder atIndex:contentIndexPath.row];
         [_tableView insertRowsAtIndexPaths:@[contentIndexPath] withRowAnimation:UITableViewRowAnimationFade];
+        [_tableView reloadRowsAtIndexPaths:@[_lastIndexPath] withRowAnimation:UITableViewRowAnimationNone];
     }
 }
 
